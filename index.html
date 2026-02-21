@@ -1,38 +1,939 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Game Map</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <style>
-    #map { height: 100vh; width: 100vw; }
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Map</title>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+<link rel="icon" href="data:,">
+<style>
+  /* Reset a základní font */
+  body {
+    margin: 0;
+    font-family: sans-serif;
+    background: #f0f0f0;
+  }
+
+  /* Kontejner mapy */
+  #container {
+    width: 100%;
+    height: 70vh;
+    overflow: hidden;
+    transition: height 0.3s, opacity 0.3s;
+    border-bottom: 1px solid #ccc;
+  }
+
+  #map {
+    height: 100%;
+    width: 100%;
+  }
+	/* Tlačítko Zabrat v info boxu */
+#info button {
+    margin-top: 8px;
+    padding: 6px 12px;
+    background: #4caf50; /* výrazná zelená */
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 30%;
+    font-weight: bold;
+    transition: background 0.2s, transform 0.1s;
+}
+
+#info button:hover {
+    background: #45a049;
+    transform: scale(1.03); /* lehký hover efekt */
+}
+
+#info button:active {
+    transform: scale(0.98); /* jemný stisk */
+}
+
+  /* Tlačítko expand/collapse */
+  #toggleBtn {
+    margin: 5px auto;
+    display: block;
+    padding: 8px 12px;
+    background: white;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    width: 150px;
+    text-align: center;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  /* Info box */
+    /* Info box jako karta uprostřed */
+  #info {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%); /* centrování celé karty */
+    width: 280px;
+    max-height: 60vh;
+    padding: 12px 16px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    overflow-y: auto;
+    font-size: 14px;
+    z-index: 1000;
+    text-align: center; /* vycentruje název a tlačítko */
+  }
+
+  #info h3 {
+    margin: 0 0 6px 0;
+    font-size: 18px;
+    color: #222;
+  }
+
+  #info p, #info ul {
+    text-align: left; /* text uvnitř zůstává čitelný */
+  }
+
+  button.station-btn {
+    padding: 5px 8px;
+    margin-top: 5px;
+    display: block;
+    width: 100%;
+    cursor: pointer;
+    border: 1px solid #888;
+    border-radius: 4px;
+    background: #eee;
+    transition: background 0.2s;
+  }
+
+  button.station-btn:hover {
+    background: #ddd;
+  }
+
+  /* Timer box */
+  #timerBox {
+    display: none;
+    padding: 10px;
+    border: 1px solid #444;
+    background: white;
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
+
+  /* Overlay */
+  #overlayBackdrop {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.4);
+    z-index: 9997;
+  }
+
+  #overlayBox {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border: 1px solid black;
+    padding: 20px;
+    z-index: 9998;
+    text-align: center;
+    width: 250px;
+    border-radius: 8px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+  }
+
+  #overlayBox select {
+    width: 90%;
+    padding: 4px;
+    margin-top: 6px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+  }
+
+  #overlayBox button {
+    cursor: pointer;
+    margin-top: 10px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #eee;
+  }
+
+  /* Steal box */
+  #stealBox {
+    padding: 10px;
+    margin-top: 10px;
+    border: 1px solid #444;
+    display: flex;
+    gap: 20px;
+    background: white;
+    border-radius: 6px;
+  }
+
+  #stealBox select {
+    width: 100%;
+    padding: 4px;
+    margin-top: 4px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+  }
+
+  #stealBox table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  #stealBox table th, #stealBox table td {
+    border: 1px solid #ccc;
+    padding: 4px;
+    text-align: center;
+  }
+
+  #stealBox button {
+    margin-top: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #eee;
+  }
+
+  #stealBox button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Vybraná stanice */
+  #selectedStation {
+    margin: 5px 0;
+    padding: 5px;
+    border: 1px solid #ccc;
+    min-height: 24px;
+    background: #fafafa;
+  }
+
+  /* Quarter hour modal */
+  #quarterHourModal {
+    display: none;
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    background: white;
+    border: 1px solid #444;
+    padding: 20px;
+    z-index: 2000;
+    width: 280px;
+    border-radius: 6px;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.3);
+    text-align: center;
+  }
+
+  #quarterHourModal button {
+    margin-top: 10px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid #444;
+    background: #eee;
+  }
+
+  #modalBarContainer {
+    width: 100%;
+    height: 10px;
+    background: #ddd;
+    margin-top: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  #modalBar {
+    width: 0%;
+    height: 100%;
+    background: #4caf50;
+    border-radius: 5px;
+    transition: width 0.2s linear;
+  }
+  /* Timer box */
+#timerBox {
+  display: none;
+  padding: 10px;
+  border: 1px solid #444;
+  background: white;
+  position: fixed;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  text-align: center;
+}
+
+/* Timer cancel button */
+#timerBox button {
+  margin-top: 6px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background: #f44336; /* červená */
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s, transform 0.1s;
+}
+
+#timerBox button:hover {
+  background: #d32f2f;
+  transform: scale(1.05);
+}
+
+#timerBox button:active {
+  transform: scale(0.98);
+}
+</style>
 </head>
 <body>
+
+<div id="container">
   <div id="map"></div>
+</div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    const map = L.map('map').setView([49.7475, 13.3776], 13); // Plzeň střed
+<div id="toggleBtn">Zobrazit/Skrýt mapu</div>
+<div id="info">Klikni na stanici, aby se zobrazilo info.</div>
+<div id="timerBox"></div>
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-    }).addTo(map);
+<div id="overlayBackdrop"></div>
+<div id="overlayBox">
+  <p>Kdo jsi?</p>
+  <div id="testPlayerBox">
+    <label for="playerSelect"><b>Hráč:</b></label>
+    <select id="playerSelect">
+    </select>
+</div>
+  <button id="quickBtn">Pokračovat</button>
+</div>
 
-    // Příklad stanic
-    const stations = [
-      { name: "Hlavní nádraží", coords: [49.7467, 13.3776] },
-      { name: "Bolevec", coords: [49.7540, 13.3600] },
-      // další posíláš ty
-    ];
+<div id="stealBox">
+  <div style="flex:1;">
+    <label for="playerStealSelect"><b>Filtr hráče:</b></label>
+    <select id="playerStealSelect"></select>
+    <table id="stealTable">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Stanice</th>
+          <th>Body</th>
+          <th>Čas zabraní</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div style="flex:0 0 200px;">
+    <div style="margin-top:10px;">
+      <b>Vybraná stanice:</b>
+      <div id="selectedStation"></div>
+      <button id="submitStealBtn" disabled>Ukradni stanici</button>
+    </div>
+  </div>
+</div>
 
-    stations.forEach(station => {
-      const marker = L.marker(station.coords).addTo(map);
-      marker.bindPopup(`<b>${station.name}</b><br>Klikni pro zabraní!`);
-      marker.on('click', () => {
-        alert(`Chceš zabrat stanici: ${station.name}`);
+<div id="quarterHourModal">
+  <div id="modalText"></div>
+  <button id="closeModal" disabled>OK</button>
+  <div id="modalBarContainer">
+    <div id="modalBar"></div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let currentPlayer = null;
+
+document.getElementById("quickBtn").onclick = function () {
+    currentPlayer = document.getElementById("playerSelect").value;
+
+    document.getElementById("overlayBox").remove();
+    document.getElementById("overlayBackdrop")?.remove();
+
+    initStealBox(); // ⬅️ TADY
+};
+
+const SUPABASE_URL = "https://lvvonpzerwznavcowjzj.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_LlHgKxDgi6b814nsa00wEg_zsE-PBas";
+supabase = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
+);
+const container = document.getElementById('container');
+const toggleBtn = document.getElementById('toggleBtn');
+const infoDiv = document.getElementById('info');
+const activeCaptures = {}; 
+// { stationName: { timerId, endTime } }
+const stationLogs = {}; 
+// { stationName: [ "Martin", "B", "Martin" ] }
+let visible = true;
+let activeCapture = null; // teď žádná stanice není zabírána
+
+async function updatePlayerSelect() {
+  try {
+    const { data, error } = await supabase
+      .from('station_logs')
+      .select('player');
+    if (error) throw error;
+
+    const uniquePlayers = [...new Set(data.map(d => d.player))];
+    const playerSelect = document.getElementById('playerSelect');
+    playerSelect.innerHTML = ''; // vyčistit staré možnosti
+
+    playerSelect.innerHTML = uniquePlayers
+      .map(player => `<option value="${player}">${player}</option>`)
+      .join('');
+  } catch (err) {
+    console.error("Chyba při fetchi hráčů:", err);
+  }
+}
+
+// zavoláme při načtení stránky
+updatePlayerSelect();
+
+async function getOfficialTime() {
+  try {
+    // fetch serverového času z Supabase
+    const { data, error } = await supabase
+      .from('station_logs')       // vybereme libovolnou tabulku
+      .select('time')
+      .limit(1)                   // jen dummy row pro fetch
+      .order('time', { ascending: false });
+
+    if (error) throw error;
+
+    // pokud máme nějaký záznam, vezmeme aktuální serverový čas UTC
+    const utcNow = new Date(); // fallback
+    if (data && data.length > 0 && data[0].time) {
+      utcNow.setTime(Date.now()); // jen placeholder, protože Supabase vrátí vlastně UTC server
+    }
+
+    // převedeme na Prague time
+    const tzOffset = 1; // CET standardní offset
+    const dst = new Date().getTimezoneOffset() < new Date(Date.UTC(2026,0,1)).getTimezoneOffset() ? 1 : 0;
+    const pragueTime = new Date(utcNow.getTime() + ((tzOffset + dst) * 60 * 60 * 1000));
+
+    return pragueTime;
+  } catch (err) {
+    console.error("Chyba při fetchi oficiálního času:", err);
+    return new Date(); // fallback na lokální čas
+  }
+}
+
+// JS logika
+function showReportModal() {
+  const modal = document.getElementById("quarterHourModal");
+  const modalText = document.getElementById("modalText");
+  const closeBtn = document.getElementById("closeModal");
+  const bar = document.getElementById("modalBar");
+
+  if (!modal || !modalText || !closeBtn || !bar) {
+    console.error("Modal elementy nenalezeny!");
+    return;
+  }
+
+  modalText.textContent =
+    "Nahlaš svoji pozici na Whatsapp (stanici a spoj nebo „na zastávce“).";
+
+  modal.style.display = "block";
+  closeBtn.disabled = true;
+  bar.style.width = "0%";
+
+  const duration = 3000;
+  const start = performance.now();
+
+  function animate(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    bar.style.width = `${progress * 100}%`;
+
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      closeBtn.disabled = false;
+    }
+  }
+
+  requestAnimationFrame(animate);
+
+  closeBtn.onclick = () => {
+    modal.style.display = "none";
+  };
+}
+
+// funkce pro spuštění modalu každých 15 minut
+async function scheduleQuarterHourModal() {
+  const now = await getOfficialTime();
+  const minutes = now.getMinutes();
+  const seconds = now.getSeconds();
+  
+  // zjistí, kolik ms do další čtvrthodiny
+  const nextQuarter = (15 - (minutes % 15)) * 60 * 1000 - seconds * 1000;
+  
+  setTimeout(() => {
+    showReportModal(); // popup první čtvrthodina
+    setInterval(() => showReportModal(), 15*60*1000); // každých 15 minut
+  }, nextQuarter);
+}
+
+// spustit na začátku
+document.addEventListener('DOMContentLoaded', () => {
+  scheduleQuarterHourModal();
+});
+
+function updateStationLogUI(stationName, log = []) {
+  const logDiv = document.getElementById(`log-${stationName.replace(/\s+/g,'_')}`);
+  if (!logDiv) return;
+  const ul = logDiv.querySelector("ul");
+  ul.innerHTML = '';
+  log.forEach(entry => {
+    const li = document.createElement("li");
+    li.textContent = `${entry.player} - ${entry.time}`;
+    ul.appendChild(li);
+  });
+}
+
+function startCapture(station) {
+  const player = currentPlayer;
+  const name = station.name;
+
+  if (activeCapture) {
+    alert(`Už máš jednu stanici zabíranou: ${activeCapture.stationName}`);
+    return;
+  }
+
+  const fetchedLog = station.fetchedLog ?? []; // logy ze Supabase
+  const uniquePlayers = new Set(fetchedLog.map(entry => entry.player));
+  const minutes = 1 + uniquePlayers.size * 3;
+  const endTime = Date.now() + minutes * 60_000 + 1;
+
+  // ... zbytek kódu beze změny
+
+  // interval pro timer
+  const interval = setInterval(() => {
+    const left = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+    const box = document.getElementById("timerBox");
+    box.style.display = "block";
+    box.innerHTML = `
+      <b>${name}</b><br>
+      Zbývá: ${Math.floor(left / 60)}:${String(left % 60).padStart(2,"0")}
+      <br>
+      <button onclick="cancelCapture('${name}')">Zrušit</button>
+    `;
+    if (left <= 0) clearInterval(interval);
+  }, 1000);
+
+  // timeout pro finalize
+  const timerId = setTimeout(() => finalizeCapture(name, player), minutes * 60_000);
+
+  activeCaptures[name] = { timerId, interval, endTime };
+  activeCapture = { stationName: name }; // blokuje další zabírání
+}
+
+function cancelCapture(stationName) {
+  if (!activeCaptures[stationName]) return;
+
+  clearTimeout(activeCaptures[stationName].timerId);
+  clearInterval(activeCaptures[stationName].interval);
+  delete activeCaptures[stationName];
+  activeCapture = null;
+
+  hideTimer();
+}
+
+async function finalizeCapture(stationName, player) {
+  const station = stations.find(s => s.name === stationName);
+  if (!station) return;
+
+  // inicializace fetchedLog pokud náhodou není
+  if (!station.fetchedLog) station.fetchedLog = [];
+
+  // přidáme nový záznam do lokální kopie
+const now = await getOfficialTime();
+const newEntry = {
+  player,
+  time: now.toTimeString().split(' ')[0] // "HH:MM:SS"
+};
+  station.fetchedLog.push(newEntry);
+
+  // aktualizace GUI podle všech záznamů (včetně fetchedLog ze Supabase)
+  updateStationLogUI(stationName, station.fetchedLog);
+
+  // zrušení timerů
+  if (activeCaptures[stationName]) {
+    clearInterval(activeCaptures[stationName].interval);
+    clearTimeout(activeCaptures[stationName].timerId);
+    delete activeCaptures[stationName];
+  }
+  activeCapture = null;
+  hideTimer();
+
+  alert(`Stanice ${stationName} byla zabráná!`);
+
+  // přidání záznamu do Supabase
+  try {
+    const { error } = await supabase
+      .from('station_logs')
+      .insert([{ station_id: station.id, player, time: newEntry.time }]);
+
+    if (error) throw error;
+    console.log(`Záznam hráče ${player} přidán do Supabase pro stanici ${stationName}`);
+	updateStealTable();
+  } catch (err) {
+    console.error("Chyba při zápisu do Supabase:", err);
+  }
+}
+
+function showTimer(stationName, endTime) {
+  const box = document.getElementById("timerBox");
+  box.style.display = "block";
+
+  const update = () => {
+    let left = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+    if (left === 0) {
+      clearInterval(interval);
+    }
+    box.innerHTML = `
+      <b>${stationName}</b><br>
+      Zbývá: ${Math.floor(left / 60)}:${String(left % 60).padStart(2,"0")}
+      <br>
+      <button onclick="cancelCapture('${stationName}')">Zrušit</button>
+    `;
+  };
+
+  update(); // zobrazíme hned, nečekáme na interval
+  const interval = setInterval(update, 1000);
+}
+
+function hideTimer() {
+  document.getElementById("timerBox").style.display = "none";
+}
+
+function hideMap() {
+    container.style.height = '0';
+    container.style.opacity = '0';
+    visible = false;
+    setTimeout(() => map.invalidateSize(), 310);
+}
+
+function showMap() {
+    container.style.height = '70vh';
+    container.style.opacity = '1';
+    visible = true;
+    setTimeout(() => map.invalidateSize(), 310);
+}
+
+toggleBtn.addEventListener('click', () => {
+    if (visible) hideMap();
+    else showMap();
+});
+
+// inicializace mapy
+const map = L.map('map', {
+  minZoom: 13,
+  maxZoom: 18,
+  maxBounds: [
+    [49.71, 13.3],
+    [49.79, 13.425]
+  ],
+  maxBoundsViscosity: 1.0
+}).setView([49.7475, 13.3776], 13);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19
+}).addTo(map);
+
+// Funkce pro vytvoření vlastního SVG markeru s aktuální barvou
+function createColoredMarker(color) {
+    const svgIcon = `
+    <svg width="30" height="40" viewBox="0 0 203 271" xmlns="http://www.w3.org/2000/svg">
+      <circle style="fill:black;stroke-width:0.264583" cx="102" cy="102" r="102"/>
+      <path style="fill:black;stroke-width:0.264583" d="M0,102 102,271 203,102 Z"/>
+      <ellipse style="fill:currentColor;fill-opacity:1;stroke-width:0.264583" cx="102" cy="102" rx="85" ry="85"/>
+    </svg>
+    `;
+    return L.divIcon({
+        className: "",
+        html: `<div style="color:${color}">${svgIcon}</div>`,
+        iconSize: [30, 40],
+        iconAnchor: [15, 40],
+        popupAnchor: [0, -40]
+    });
+}
+const colorNames = {
+	darkgreen: "Tmavě zelená",
+	darkcyan: "Azurově modrá",
+	brown: "Hnědá",
+	purple: "Fialová",
+	coral: "Světle oranžová",
+	lightblue: "Světle modrá",
+	limegreen: "Světle zelená",
+	darkblue: "Tmavě modrá",
+	hotpink: "Růžová",
+	yellow: "Žlutá",
+	crimson: "Červená"
+	};
+	
+const stations = [
+  { name: "Košutka", points: "25", coords: [49.78231706568882, 13.372739300651574], lines: "4, N3, N6", color: "darkgreen" },
+  { name: "Bolevec", points: "25", coords: [49.78381426112756, 13.383287369123575], lines: "1, 24, 25, 34, 58, N1", color: "darkcyan" },
+  { name: "Okounová", points: "15", coords: [49.77956663555538, 13.382089196831373], lines: "1, 24, 25, 30, 34, 58, N1, N4", color: "brown" },
+  { name: "Komenského", points: "20", coords: [49.77520759247677, 13.373025262184068], lines: "24, 30", color: "brown" },
+  { name: "Severka", points: "20", coords: [49.77544189950895, 13.367322697989664], lines: "4, 24, 30, 33, 40, N3, N6", color: "purple" },
+  { name: "U Družby", points: "10", coords: [49.767964101123184, 13.362868577291923], lines: "4, 25, 33, 40, N1, N4", color: "purple" },
+  { name: "Úřad Lochotín", points: "25", coords: [49.766777177665944, 13.371912208435852], lines: "25, 33, 40, N1, N4", color: "coral" },
+  { name: "U Gery", points: "10 + 4 body za každou st. na 4", coords: [49.76671034573309, 13.373386184480271], lines: "1, 25, 34, N1, N4", color: "lightblue" },
+  { name: "Zoologická zahrada", points: "13", coords: [49.76123898260954, 13.367473000022567], lines: "4, 25, 27, 41, 56, N1, N4", color: "lightblue" },
+  { name: "Lékařská fakulta", points: "15", coords: [49.76208246364182, 13.370595057386987], lines: "1, 25, 33, 34, 40", color: "darkcyan" },
+  { name: "Pod Záhorskem", points: "30", coords: [49.7576476276576, 13.372358012673729], lines: "1, 4", color: "lightblue" },
+  { name: "Rondel", points: "30", coords: [49.75467964478695, 13.376334849378006], lines: "27, 33, 34, 40, 41, 56, N1, N3, N4, N6", color: "darkgreen" },
+  { name: "Poliklinika Doubravka", points: "25", coords: [49.7551116644317, 13.418150021632458], lines: "16, 17, 28, 29, 30, 38, N3, N6", color: "limegreen" },
+  { name: "Stavební stroje", points: "20", coords: [49.74931259035867, 13.402546096923066], lines: "13, 16, 17, 28", color: "lightblue" },
+  { name: "Gambrinus", points: "15", coords: [49.747966319672905, 13.396422293137235], lines: "11, 13, 15, 16, 17, 28, N3, N6", color: "coral" },
+  { name: "Prazdroj", points: "20", coords: [49.746608546433066, 13.388318694115553], lines: "13, 28", color: "limegreen" },
+  { name: "Světovar", points: "30", coords: [49.72758251202751, 13.412182589106749], lines: "2, 22, 51, N2, N5", color: "limegreen" },
+  { name: "Nám. Generála Píky", points: "12", coords: [49.73377170294722, 13.399375561676495], lines: "2", color: "darkblue" },
+  { name: "U Duhy", points: "15", coords: [49.73943108167382, 13.391783242366001], lines: "2, 12", color: "coral" },
+  { name: "Slovany", points: "30", coords: [49.72455059874195, 13.39983451143759], lines: "1, 10, 13, 22, 23, 29, 30, 31, 51, N2, N5", color: "darkblue" },
+  { name: "Olšová", points: "12", coords: [49.729803540680855, 13.394971677739191], lines: "1", color: "brown" },
+  { name: "Mikulášské náměstí", points: "17", coords: [49.739420437793285, 13.38718749581979], lines: "1, 2, N2, N5", color: "darkblue" },
+  { name: "Vodárna", points: "25", coords: [49.72536721981232, 13.391181751953088], lines: "10, 13, 22, 29, 30", color: "hotpink" },
+  { name: "Tyršův most", points: "20", coords: [49.719688785568614, 13.381128109833275], lines: "14, 23, 30, 32, 39", color: "purple" },
+  { name: "U Teplárny", points: "18", coords: [49.7260319396208, 13.376323447940337], lines: "14, 16, 19, 23, 32, 39, N1, N4", color: "darkblue" },
+  { name: "Nemocnice Bory", points: "15", coords: [49.732399217688666, 13.375449656753858], lines: "16, 19, 22, N1, N4", color: "purple" },
+  { name: "U Radbuzy", points: "13", coords: [49.73969394439459, 13.379534641166567], lines: "10, 13, 14", color: "limegreen" },
+  { name: "Dobrovského", points: "18", coords: [49.73490587158037, 13.370554217506156], lines: "4, 16, 19, 22, N1, N4", color: "limegreen" },
+  { name: "Náměstí Míru", points: "10 + 4 body za každou st. na 2", coords: [50.07490923316123, 14.436593995901013], lines: "4, 29", color: "darkblue" },
+  { name: "U Luny", points: "25", coords: [49.72355347675053, 13.37450795290418], lines: "14, 16, 19, 21, 23, 32, 36, 39, N1, N4", color: "yellow" },
+  { name: "Borský park", points: "16", coords: [49.72664723307258, 13.36608606484964], lines: "4, 19, 21, 23, 30, 32, 36, 39, N1, N4", color: "purple" },
+  { name: "Bory", points: "40", coords: [49.726962129269936, 13.360128878811281], lines: "4, 19, 21, 23, 24, 25, 26, 30, 32, 36, 39, 42, N1", color: "crimson" },
+  { name: "Technická", points: "20", coords: [49.72734524352262, 13.352840942902047], lines: "4", color: "darkgreen" },
+  { name: "Západočeská univerzita", points: "18", coords: [49.72304886514411, 13.351361426384821], lines: "19, 24, 25, 30, N1", color: "yellow" },
+  { name: "NC Borská pole", points: "30", coords: [49.73076364098301, 13.345044588945662], lines: "15, 17, 18, 19, 29, N7, N12", color: "yellow" },
+  { name: "Borská pole", points: "25", coords: [49.725528369722575, 13.327770428886808], lines: "15, 18, 19, 25, 29, 30", color: "darkblue" },
+  { name: "Nová Hospoda", points: "26", coords: [49.73126726796306, 13.313673969493722], lines: "12, 15, 17, 19, 43, N7", color: "yellow" },
+  { name: "Skvrňany", points: "30", coords: [49.74622954711142, 13.320603094223468], lines: "2A", color: "coral" },
+  { name: "Macháčkova", points: "12 + 4 body za každou st. na 1", coords: [49.74292542107676, 13.326294390631285], lines: "2A, 24, 25, 37, 43, N2, N5", color: "yellow" },
+  { name: "Přední Skvrňany", points: "15", coords: [49.74568722432432, 13.350521885838631], lines: "2A", color: "hotpink" },
+  { name: "Škoda III. brána", points: "25", coords: [49.74588890497649, 13.356164853548904], lines: "2A, 12", color: "coral" },
+  { name: "Karlov", points: "25", coords: [49.735379526582086, 13.350720093481778], lines: "15, 17, 18, 19, 22, N7", color: "hotpink" },
+  { name: "Jižní Předměstí", points: "35", coords: [49.7399230126032, 13.366821117321471], lines: "10, 15, 16, 17, 18, 19, 22, N7", color: "yellow" },
+  { name: "Kalikova", points: "20", coords: [49.74905862607982, 13.365928642383079], lines: "11", color: "darkgreen" },
+  { name: "Tylova", points: "20", coords: [49.74503772968599, 13.36761306974767], lines: "10, 11, 12, 15, 16, 17, 18, N2, N5, N7", color: "darkgreen" },
+  { name: "Palackého náměstí", points: "10", coords: [49.74845257114385, 13.371490393299155], lines: "2A", color: "crimson" },
+  { name: "Sady Pětatřicátníků", points: "55 Otevře se hodinu po startu", coords: [49.74764987152941, 13.37376822635953], lines: "1, 2, 4, 20, 27, 28, 34, 41, 56, N3, N6", color: "crimson" },
+  { name: "Otýlie Beníškové", points: "25", coords: [49.75257625214602, 13.378534579401641], lines: "20, 33, 40, N1, N4", color: "lightblue" },
+  { name: "Hlavní pošta", points: "35", coords: [49.74824415344837, 13.375639145915459], lines: "1, 2, 2A", color: "darkcyan" },
+  { name: "Náměstí Republiky", points: "40 Otevře se hodinu po startu", coords: [49.747444659523815, 13.37841026025872], lines: "1, 2, 2A, 20, 33, 40, N1, N4", color: "crimson" },
+  { name: "Anglické nábřeží", points: "30", coords: [49.746540567240444, 13.382419323611293], lines: "1, 2, 13, 14", color: "darkcyan" },
+  { name: "Hlavní nádraží", points: "50 Otevře se hodinu po startu", coords: [49.74352413922468, 13.388121879179566], lines: "1, 2, 11, 15, 16, 17, N3, N6", color: "hotpink" },
+  { name: "Pařížská", points: "30", coords: [49.74377471642511, 13.384853611686196], lines: "11, 12, 14, 15, 16, 17, 34, N2, N3, N5, N6", color: "crimson" },
+  { name: "Mrakodrap", points: "65 Otevře se hodinu po startu", coords: [49.743387044397785, 13.377225040877603], lines: "10, 11, 12, 15, 16, 17, 20, 27, 34, N1, N2, N3, N4, N5, N6, N7, N11, N12", color: "brown" },
+  { name: "Prokopova", points: "15", coords: [49.742396302410086, 13.379130255632113], lines: "10, 13, 14", color: "darkcyan" },
+  { name: "U Práce", points: "45 Otevře se hodinu po startu", coords: [49.74399691682896, 13.372731422122357], lines: "4, 10, 11, 12, 15, 16, 17, 20, 27, N1, N2, N3, N4, N5, N6, N7, N12", color: "hotpink" },
+  { name: "Divadlo J. K. Tyla", points: "36", coords: [49.7454057047078, 13.370593855356935], lines: "28, 41, 56", color: "brown" },
+  { name: "Goethova", points: "25", coords: [49.74391583910887, 13.378516635985436], lines: "13, 14, 20, 33, 40", color: "crimson" }
+];
+
+	stations.forEach((station, index) => {
+	  const stationId = index + 1; // Košutka = 1, Bolevec = 2, ...
+	  station.id = stationId;
+	  const markerColor = station.color || "black";
+	  const marker = L.marker(
+		station.coords,
+		{ icon: createColoredMarker(markerColor) }
+	  ).addTo(map);
+
+	marker.on("click", async () => {
+  const logId = `log-${station.name.replace(/\s+/g,'_')}`;
+
+  let data = [];
+  try {
+    const { data: fetchedData, error } = await supabase
+      .from('station_logs')
+      .select('*')
+      .eq('station_id', stationId)
+      .order('time', { ascending: true });
+
+    if (error) throw error;
+    data = fetchedData;
+    station.fetchedLog = data;
+  } catch (err) {
+    console.error("Chyba při fetchi logů:", err);
+  }
+
+  const ulContent = data.map(entry => `<li>${entry.player} - ${entry.time}</li>`).join('');
+
+  infoDiv.innerHTML = `
+  <div style="display:flex; justify-content:flex-end;">
+    <span id="closeInfo" style="
+      cursor:pointer;
+      font-weight:bold;
+      font-size:16px;
+      padding:2px 6px;
+      border:1px solid #ccc;
+      border-radius:50%;
+      background:#eee;
+    ">×</span>
+  </div>
+  <h3>${station.name}</h3>
+  <p><b>Body:</b> ${station.points}</p>
+  <p><b>Linky:</b> ${station.lines}</p>
+  <p>
+    <b>Barva:</b>
+    <span class="station-color" style="background:${station.color};"></span>
+    ${colorNames[station.color] ?? station.color}
+  </p>
+  <button onclick="startCapture(${JSON.stringify(station).replace(/"/g, '&quot;')})">Zabrat</button>
+  <ul>${ulContent}</ul>
+`;
+const closeBtn = document.getElementById("closeInfo");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      infoDiv.style.display = "none";
+	  });
+	}
+infoDiv.style.display = "block";
+});
+});
+	const playerStealSelect = document.getElementById("playerStealSelect");
+	const stealTableBody = document.querySelector("#stealTable tbody");
+	const selectedStationDiv = document.getElementById("selectedStation");
+	const submitStealBtn = document.getElementById("submitStealBtn");
+
+	let currentSelection = null; // { stationId, player, logTime }
+
+	async function initStealBox() {
+  try {
+    const { data, error } = await supabase
+      .from('station_logs')
+      .select('player');
+    if (error) throw error;
+
+    // deduplikace hráčů jednoduše přes Set
+    const uniquePlayers = [...new Set(data.map(d => d.player))];
+
+    // naplníme stealablePlayers select přesně jako playerSelect
+    playerStealSelect.innerHTML = uniquePlayers
+      .map(player => `<option value="${player}">${player}</option>`)
+      .join('');
+  } catch (err) {
+    console.error("Chyba při fetchi hráčů:", err);
+  }
+
+  updateStealTable();
+}
+
+	playerStealSelect.addEventListener("change", updateStealTable);
+
+	async function updateStealTable() {
+  const selectedStealPlayer = playerStealSelect.value;
+  if (!selectedStealPlayer) {
+    stealTableBody.innerHTML = "";
+    return;
+  }
+
+  try {
+    const { data: allLogs, error } = await supabase
+      .from('station_logs')
+      .select('*');
+    if (error) throw error;
+
+    const lastLogByStation = {};
+    allLogs.forEach(l => {
+      if (!lastLogByStation[l.station_id] || l.id > lastLogByStation[l.station_id].id) {
+        lastLogByStation[l.station_id] = l;
+      }
+    });
+
+    const playerStationIds = new Set(
+      allLogs.filter(l => l.player === selectedStealPlayer).map(l => l.station_id)
+    );
+
+    const rows = Array.from(playerStationIds).map(stationId => {
+  const station = stations.find(s => s.id === stationId);
+  if (!station) return null;
+
+  const lastLog = lastLogByStation[stationId];
+  const canSteal = lastLog.player === selectedStealPlayer && lastLog.player !== currentPlayer;
+  return {
+    station_id: station.id,
+    name: station.name,
+    points: station.points,
+    time: lastLog.time,
+    canSteal
+  };
+}).filter(Boolean);
+
+// vykreslení tabulky
+stealTableBody.innerHTML = rows.map(r => `
+  <tr>
+    <td>
+      <input type="radio" name="stationSelect" value="${r.station_id}" ${r.canSteal ? "" : "disabled"}>
+    </td>
+    <td>${r.name}</td>
+    <td>${r.points}</td>
+    <td>${r.time}</td>
+  </tr>
+`).join('');
+
+    stealTableBody.querySelectorAll('input[name="stationSelect"]').forEach(input => {
+      input.addEventListener('change', (e) => {
+        const row = rows.find(r => r.station_id == e.target.value);
+        currentSelection = row;
+        selectedStationDiv.textContent = row ? row.name : "";
+        submitStealBtn.disabled = !row;
       });
     });
-  </script>
-</body>
-</html>
+
+  } catch (err) {
+    console.error("Chyba při update tabulky steal:", err);
+  }
+}
+
+	submitStealBtn.addEventListener('click', async () => {
+	  if (!currentSelection) return;
+
+	  const stealingPlayer = currentPlayer; // hráč, kdo stealuje
+	  const stationId = currentSelection.station_id;
+
+	  try {
+		const now = await getOfficialTime();
+		const timeOnly = now.toTimeString().split(' ')[0]; // "17:17:40"
+		const { error } = await supabase
+			.from('station_logs')
+			.insert([{ station_id: stationId, player: stealingPlayer, time: timeOnly }]);
+		
+		if (error) throw error;
+
+		console.log(`Steal log inserted: stanice ${stationId}, hráč ${stealingPlayer}, čas ${now.toISOString()}`);
+		alert(`Stanice ${currentSelection.name} byla stealnuta pro ${stealingPlayer}!`);
+
+		// refresh tabulky
+		updateStealTable();
+		selectedStationDiv.textContent = "";
+		currentSelection = null;
+		submitStealBtn.disabled = true;
+
+	  } catch (err) {
+		console.error("Chyba při steal:", err);
+	  }
+	});
+
+	// inicializace
+	initStealBox();
+
+	</script>
+	</body>
+	</html>
